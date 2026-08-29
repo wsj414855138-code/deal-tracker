@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>机票捕手 · 北京/天津出发低价雷达</title>
+<style>
+body { font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; margin: 0; background: #f5f6fa; color: #2f3542; }
+.wrap { max-width: 720px; margin: 0 auto; padding: 16px; }
+h1 { font-size: 22px; margin: 8px 0 4px; }
+.tagline { color: #747d8c; font-size: 13px; margin-bottom: 16px; }
+.layout { display: block; }
+@media (min-width: 980px) {
+  .wrap { max-width: 1080px; }
+  .layout { display: grid; grid-template-columns: 330px minmax(0, 1fr); gap: 20px; align-items: start; }
+  .side { position: sticky; top: 16px; }
+}
+.card { background: #fff; border-radius: 12px; padding: 12px 14px; margin-bottom: 10px; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+.card.hot { border-left: 4px solid #ff6348; }
+.route { font-weight: 600; }
+.route .code { color: #a4b0be; font-size: 12px; font-weight: 400; margin-left: 4px; }
+.price { color: #2ecc71; font-weight: 700; font-size: 17px; }
+.price.hot { color: #ff6348; }
+.dates { color: #57606f; font-size: 13px; margin-top: 4px; }
+.tag { display: inline-block; background: #ff6348; color: #fff; font-size: 12px; border-radius: 4px; padding: 2px 6px; margin-left: 6px; }
+.panel { background: #fff; border-radius: 12px; padding: 14px; margin-bottom: 16px; }
+label { display: block; margin: 8px 0 4px; font-size: 13px; color: #57606f; }
+select, input { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; font-size: 14px; }
+button { margin-top: 12px; width: 100%; padding: 10px; border: none; border-radius: 8px; background: #2ecc71; color: #fff; font-size: 15px; font-weight: 600; cursor: pointer; }
+button.ghost { background: #e8ecf1; color: #2f3542; margin-top: 6px; }
+.sub-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid #f1f2f6; font-size: 14px; }
+.meta { color: #a4b0be; font-size: 12px; margin-top: 8px; }
+.filters { margin: 8px 0 4px; }
+.chip { display: inline-block; padding: 4px 11px; border-radius: 15px; background: #fff; border: 1px solid #dfe4ea; font-size: 13px; margin: 0 6px 6px 0; cursor: pointer; color: #2f3542; }
+.chip.on { background: #2f3542; border-color: #2f3542; color: #fff; }
+.chip.hot-toggle.on { background: #ff6348; border-color: #ff6348; }
+.chip.sub-toggle.on { background: #2ecc71; border-color: #2ecc71; }
+.filters select { width: auto; display: inline-block; padding: 4px 8px; font-size: 13px; border-radius: 15px; border: 1px solid #dfe4ea; color: #2f3542; background: #fff; vertical-align: middle; margin: 0 6px 6px 0; }
+.count-note { color: #a4b0be; font-size: 12px; margin: 4px 0 10px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>✈️ 机票捕手</h1>
+<div class="tagline">北京/天津出发 · 全球低价雷达 · 数据每日 20:47（北京时间）自动更新</div>
+
+<div class="layout">
+<div class="side">
+<div class="panel">
+<h3 style="margin:0 0 8px">⏱ 数据状态</h3>
+<div class="meta" id="scanMeta">加载中…</div>
+<div class="meta" id="budgetMeta"></div>
+<div class="meta">扫描由 GitHub Actions 定时执行：每日 20:47 快扫，周六 03:37 深扫。<a id="actionsLink" href="#" target="_blank" rel="noopener">查看运行记录</a></div>
+</div>
+
+<div class="panel">
+<h3 style="margin:0 0 8px">📋 我的订阅</h3>
+<div class="meta" style="margin-top:0">订阅保存在本机浏览器中</div>
+<div id="subs"></div>
+<label>目的地范围</label>
+<select id="scopeType">
+<option value="global">全球（任意目的地）</option>
+<option value="city">固定城市（如 SYD）</option>
+</select>
+<label>范围值（城市代码，全球可留空）</label>
+<input id="scopeValue" placeholder="如 SYD（悉尼）">
+<label>心理价位 CNY（可选，跌破即标红）</label>
+<input id="priceCap" type="number" placeholder="4000">
+<button onclick="addSub()">➕ 创建订阅</button>
+</div>
+</div>
+
+<div class="main">
+<h2 style="font-size:16px;margin-top:0">🔥 最便宜路线（最近扫描）</h2>
+<div class="filters" id="filters"></div>
+<div class="count-note" id="countNote"></div>
+<div id="deals"><div class="meta">加载中…</div></div>
+<div class="meta">数据源：SerpApi Google Flights · 所有价格均为参考价，含税状态未知 · 购买前请复核<br>
+<a id="reportLink" href="report/latest.html" target="_blank" rel="noopener">📄 查看完整 HTML 报告</a></div>
+</div>
+</div>
+</div>
+
+<script>
+const CONF = { "reference_only": "仅参考", "same_source_refreshed": "同源已刷新", "cross_source_checked": "跨来源核对" };
+const CITY = {
+  "SYD": "悉尼", "MEL": "墨尔本", "BNE": "布里斯班", "PER": "珀斯",
+  "ADL": "阿德莱德", "CNS": "凯恩斯", "OOL": "黄金海岸", "DRW": "达尔文", "HBA": "霍巴特"
+};
+const SUBS_KEY = "ticket-hunter-subs";
+
+let allDeals = null;       // api/deals.json
+let matchesData = null;    // 订阅命中（按订阅本地计算）
+let matchesMode = false;
+let filterDest = "all";
+let filterMonth = "all";
+let hotOnly = false;
+
+function cityName(code) { return CITY[code] || code; }
+
+function fmtDate(s) {
+  const p = s.split("-");
+  return Number(p[0]) + "年" + Number(p[1]) + "月" + Number(p[2]) + "日";
+}
+
+function fmtMonth(ym) {
+  const p = ym.split("-");
+  return p[0] + "年" + Number(p[1]) + "月";
+}
+
+/* 同一出发地+目的地聚合成一条路线：取最低价，汇总停留天数档位 */
+function groupDeals(deals) {
+  const groups = new Map();
+  for (const d of deals) {
+    const key = d.origin_group.join(",") + "|" + d.destination;
+    if (!groups.has(key)) {
+      groups.set(key, { origin_group: d.origin_group, destination: d.destination, best: d, all: [] });
+    }
+    const g = groups.get(key);
+    g.all.push(d);
+    if (d.price < g.best.price) g.best = d;
+  }
+  const list = [...groups.values()];
+  list.sort((a, b) => a.best.price - b.best.price);
+  return list;
+}
+
+/* —— 订阅（localStorage）—— */
+
+function loadSubs() {
+  try { return JSON.parse(localStorage.getItem(SUBS_KEY)) || []; }
+  catch (e) { return []; }
+}
+
+function saveSubs(subs) { localStorage.setItem(SUBS_KEY, JSON.stringify(subs)); }
+
+/* 订阅是否命中一条低价：出发地有交集 + 目的地范围匹配（区域暂按全球处理，与后端一致） */
+function matchSubscription(deal, sub) {
+  const codes = String(sub.origin || "").split(",").map(s => s.trim().toUpperCase()).filter(Boolean);
+  if (codes.length && !deal.origin_group.some(a => codes.includes(String(a).toUpperCase()))) return false;
+  if (sub.scope_type === "city") {
+    return String(deal.destination).toUpperCase() === String(sub.scope_value || "").toUpperCase();
+  }
+  return true;
+}
+
+function withSubCap(deal, sub) {
+  if (!sub.price_cap) return deal;
+  return Object.assign({}, deal, {
+    below_cap: Number(deal.price) <= Number(sub.price_cap),
+    price_cap_applied: Number(sub.price_cap),
+  });
+}
+
+/* 所有订阅命中的低价并集，每条用命中订阅的心理价位重算标红 */
+function computeMatches() {
+  const subs = loadSubs();
+  const deals = (allDeals && allDeals.deals) || [];
+  const seen = new Set();
+  const matched = [];
+  for (const sub of subs) {
+    for (const deal of deals) {
+      const key = sub.id + "|" + deal.destination + "|" + deal.departure_date + "|" + deal.return_date;
+      if (seen.has(key) || !matchSubscription(deal, sub)) continue;
+      seen.add(key);
+      matched.push(withSubCap(deal, sub));
+    }
+  }
+  matched.sort((a, b) => a.price - b.price);
+  return { scanned_at: allDeals && allDeals.scanned_at, deals: matched, subscription_count: subs.length };
+}
+
+function invalidateMatches() { matchesData = null; }
+
+/* —— 渲染 —— */
+
+function sourceData() { return matchesMode ? matchesData : allDeals; }
+
+async function loadDeals() {
+  const el = document.getElementById("deals");
+  try {
+    const r = await fetch("api/deals.json", { cache: "no-store" });
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    allDeals = await r.json();
+    renderDeals();
+    document.getElementById("scanMeta").textContent = "扫描时间："
+      + new Date(allDeals.scanned_at).toLocaleString("zh-CN")
+      + " · 观察 " + allDeals.observations + " 条 · 子请求 " + allDeals.subrequests_used;
+  } catch (e) {
+    el.innerHTML = '<div class="meta">数据加载失败（' + e.message + "）：首次部署后需等第一次定时扫描完成</div>";
+    document.getElementById("scanMeta").textContent = "暂无扫描数据";
+  }
+}
+
+async function loadBudget() {
+  try {
+    const r = await fetch("api/budget.json", { cache: "no-store" });
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    const b = await r.json();
+    document.getElementById("budgetMeta").textContent = "本月配额：已用约 " + b.used_estimate
+      + "/" + b.monthly_limit + " · 剩余约 " + b.remaining + " 次";
+  } catch (e) { /* 配额显示失败不影响主功能 */ }
+}
+
+function renderDeals() {
+  const el = document.getElementById("deals");
+  const note = document.getElementById("countNote");
+  const source = sourceData();
+  if (!source || !source.deals || !source.deals.length) {
+    document.getElementById("filters").innerHTML = "";
+    note.textContent = "";
+    el.innerHTML = matchesMode
+      ? '<div class="meta">没有订阅命中的低价——创建订阅后每次扫描自动匹配</div>'
+      : '<div class="meta">暂无数据，等待下一次定时扫描</div>';
+    return;
+  }
+  const groups = groupDeals(source.deals);
+  renderFilters(source);
+
+  const shown = groups.filter(g =>
+    (filterDest === "all" || g.destination === filterDest)
+    && (filterMonth === "all" || g.all.some(d => (d.departure_date || "").slice(0, 7) === filterMonth))
+    && (!hotOnly || g.best.below_cap));
+  note.textContent = matchesMode
+    ? "订阅命中 " + shown.length + " 条路线（共 " + groups.length + " 条）"
+    : ((filterDest === "all" && filterMonth === "all" && !hotOnly)
+      ? "共 " + groups.length + " 条路线（聚合自 " + source.deals.length + " 个低价）"
+      : "显示 " + shown.length + " / " + groups.length + " 条路线");
+  if (!shown.length) { el.innerHTML = '<div class="meta">没有符合条件的路线</div>'; return; }
+
+  el.innerHTML = shown.map(g => {
+    const origin = g.origin_group.includes("PEK") ? "北京" : "天津";
+    const hot = g.best.below_cap;
+    const tag = hot ? '<span class="tag">🔥 低于心理价位</span>' : "";
+    const priceCls = hot ? "price hot" : "price";
+    const days = [...new Set(g.all.map(d => d.stay_days))].sort((a, b) => a - b).join("/");
+    const stops = g.best.stops;
+    const stopsText = stops === null || stops === undefined ? ""
+      : (stops === 0 ? " · 直飞" : " · 中转 " + stops + " 次");
+    const airlineText = g.best.airline ? " · " + g.best.airline : "";
+    const combos = g.all.length > 1 ? " · " + g.all.length + " 个日期组合" : "";
+    const conf = g.best.confidence && g.best.confidence !== "reference_only"
+      ? " · " + (CONF[g.best.confidence] || g.best.confidence) : "";
+    return '<div class="card' + (hot ? " hot" : "") + '"><div class="route">' + origin + " → " + cityName(g.destination)
+      + '<span class="code">' + g.destination + "</span>" + tag + "</div>"
+      + '<span class="' + priceCls + '">¥' + g.best.price + " 起</span>"
+      + ' <span class="dates">停留 ' + days + " 天" + stopsText + airlineText
+      + " · 最低价 " + fmtDate(g.best.departure_date) + " 去 / " + fmtDate(g.best.return_date) + " 回"
+      + combos + conf + "</span></div>";
+  }).join("");
+}
+
+function renderFilters(source) {
+  const groups = groupDeals(source.deals);
+  const dests = [...new Set(groups.map(g => g.destination))];
+  const months = [...new Set((source.deals || []).map(d => (d.departure_date || "").slice(0, 7)))]
+    .filter(Boolean).sort();
+  let html = chip("all", "全部", filterDest === "all");
+  for (const c of dests) html += chip(c, cityName(c), filterDest === c);
+  html += '<span class="chip hot-toggle' + (hotOnly ? " on" : "") + '" onclick="toggleHot()">🔥 只看跌破价位</span>';
+  html += '<span class="chip sub-toggle' + (matchesMode ? " on" : "")
+    + '" onclick="toggleMatches()">📋 订阅命中</span>';
+  html += '<select onchange="setMonth(this.value)"><option value="all">全部月份</option>'
+    + months.map(m => '<option value="' + m + '"' + (filterMonth === m ? " selected" : "") + ">"
+      + fmtMonth(m) + "</option>").join("") + "</select>";
+  document.getElementById("filters").innerHTML = html;
+}
+
+function chip(value, label, on) {
+  return '<span class="chip' + (on ? " on" : "") + '" onclick="setDest(\'' + value + '\')">' + label + "</span>";
+}
+
+function setDest(v) { filterDest = v; renderDeals(); }
+function toggleHot() { hotOnly = !hotOnly; renderDeals(); }
+function setMonth(v) { filterMonth = v; renderDeals(); }
+
+function toggleMatches() {
+  matchesMode = !matchesMode;
+  if (matchesMode && !matchesData) matchesData = computeMatches();
+  renderDeals();
+}
+
+function renderSubs() {
+  const subs = loadSubs();
+  const el = document.getElementById("subs");
+  if (!subs.length) { el.innerHTML = '<div class="meta">还没有订阅</div>'; return; }
+  el.innerHTML = subs.map(s => {
+    const scope = s.scope_type === "global" ? "全球" : cityName(s.scope_value || "?");
+    return '<div class="sub-row"><span>' + s.origin.replace(",", "/") + " → " + scope
+      + (s.price_cap ? " · ≤¥" + s.price_cap : "") + "</span>"
+      + '<button class="ghost" style="width:auto;margin:0;padding:4px 10px" onclick="delSub(\'' + s.id + '\')">删除</button></div>';
+  }).join("");
+}
+
+function addSub() {
+  const subs = loadSubs();
+  subs.push({
+    id: "sub-" + Math.random().toString(16).slice(2, 10),
+    origin: "PEK,PKX",
+    scope_type: document.getElementById("scopeType").value,
+    scope_value: document.getElementById("scopeValue").value || null,
+    price_cap: document.getElementById("priceCap").value ? Number(document.getElementById("priceCap").value) : null,
+    created_at: new Date().toISOString(),
+  });
+  saveSubs(subs);
+  invalidateMatches();
+  if (matchesMode) matchesData = computeMatches();
+  renderSubs();
+  renderDeals();
+}
+
+function delSub(id) {
+  if (!confirm("确定删除这条订阅？（仅从本机浏览器移除）")) return;
+  saveSubs(loadSubs().filter(s => s.id !== id));
+  invalidateMatches();
+  if (matchesMode) matchesData = computeMatches();
+  renderSubs();
+  renderDeals();
+}
+
+/* Actions 运行记录与站点相对路径（Pages 项目部署在 /deal-tracker/ 子路径下也能用） */
+(function initLinks() {
+  const base = location.pathname.replace(/\/[^/]*$/, "/");
+  document.getElementById("actionsLink").href = "https://github.com/" + (window.REPO || "wsj414855138-code/deal-tracker") + "/actions";
+  document.getElementById("reportLink").href = base + "report/latest.html";
+})();
+
+loadDeals();
+loadBudget();
+renderSubs();
+</script>
+</body>
+</html>
