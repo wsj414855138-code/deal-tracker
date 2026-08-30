@@ -6,6 +6,8 @@
 
 对标 [Going](https://going.com) 的低价机票发现引擎（自用版）：盯住北京（PEK/PKX）、天津（TSN）出发的机票，目前覆盖澳大利亚 9 城，订阅后可到全球任意目的地。
 
+📖 **完整产品介绍**：[PRODUCT.md](PRODUCT.md)（定位 / 功能 / 原理 / 成本 / 限制 / FAQ）
+
 ## 功能
 
 - **低价雷达**：同出发地+目的地聚合为一条路线（「天津 → 珀斯 ¥2573 起 · 停留 3/6/13 天 · 中转 1 次 · 酷航」），支持按目的地/月份/「只看跌破心理价位」筛选
@@ -50,7 +52,7 @@ python3 -m venv .venv
 export PYTHONPATH=src
 export SERPAPI_API_KEY=你的key   # 或写入 .env（已 gitignore）
 
-python -m pytest -q                                        # 98 个测试
+python -m pytest -q                                        # 111 个测试
 python scripts/run_scheduled.py                            # 真实扫描（消耗配额）
 ./scripts/start_local.sh                                   # 本地站 http://127.0.0.1:8765/
 ```
